@@ -5,7 +5,7 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "prestart": "node -e \"const fs = require('fs'); let code = fs.readFileSync('server.js', 'utf8'); const p = code.indexOf('import makeWASocket'); if(p !== -1) { const q = code.indexOf(';', p) + 1; const content = code.substring(p, q); const p1 = content.substring(content.indexOf('{') + 1, content.indexOf('}')); code = code.substring(0, p) + 'import * as baileys from \\x22@whiskeysockets/baileys\\x22; const { default: makeWASocket, ' + p1 + ' } = baileys;' + code.substring(q); fs.writeFileSync('server.js', code); }\"",
+    "prestart": "node -e \"const fs = require('fs'); let code = fs.readFileSync('server.js', 'utf8'); const p = code.indexOf('import makeWASocket'); if(p !== -1) { const q = code.indexOf(';', p) + 1; const content = code.substring(p, q); const p1 = content.substring(content.indexOf('{') + 1, content.indexOf('}')); code = code.substring(0, p) + 'import { createRequire } from \\x22module\\x22; const require = createRequire(import.meta.url); const baileys = require(\\x22@whiskeysockets/baileys\\x22); const makeWASocket = baileys.default; const { ' + p1 + ' } = baileys;' + code.substring(q); fs.writeFileSync('server.js', code); }\"",
     "start": "node server.js",
     "dev": "node --watch server.js"
   },
