@@ -5,6 +5,7 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
+    "prestart": "node -e \"const fs = require('fs'); let code = fs.readFileSync('server.js', 'utf8'); code = code.replace(/import makeWASocket, \\{([\\s\\S]*?)\\} from '@whiskeysockets\\/baileys';/, 'import baileys from \\x27@whiskeysockets/baileys\\x27; const { default: makeWASocket, $1 } = baileys;'); fs.writeFileSync('server.js', code);\"",
     "start": "node server.js",
     "dev": "node --watch server.js"
   },
