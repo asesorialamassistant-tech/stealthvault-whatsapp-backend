@@ -35,8 +35,9 @@ const store = {
     all: () => Object.values(store.chats.data),
     data: {}
   },
+  messages: {},
   bind: (ev) => {
-    ev.on('messaging-history.set', ({ chats, contacts }) => {
+    ev.on('messaging-history.set', ({ chats, contacts, messages }) => {
       if (chats) {
         for (const chat of chats) {
           store.chats.data[chat.id] = { ...store.chats.data[chat.id], ...chat };
@@ -47,6 +48,18 @@ const store = {
           const id = contact.id;
           const name = contact.name || contact.notify || contact.verifiedName;
           store.chats.data[id] = { ...store.chats.data[id], id, name };
+        }
+      }
+      if (messages) {
+        for (const msg of messages) {
+          const jid = msg.key?.remoteJid;
+          if (jid) {
+            if (!store.messages[jid]) store.messages[jid] = [];
+            const parsed = parseMessage(msg);
+            if (parsed && !store.messages[jid].some(m => m.id === parsed.id)) {
+              store.messages[jid].push(parsed);
+            }
+          }
         }
       }
     });
@@ -85,12 +98,18 @@ const store = {
     });
     ev.on('messages.upsert', ({ messages }) => {
       for (const msg of messages) {
-        const jid = msg.key.remoteJid;
+        const jid = msg.key?.remoteJid;
         if (jid) {
           if (!store.chats.data[jid]) {
-            store.chats.data[jid] = { id: jid, unreadCount: 0 };
+            store.chats.data[jid] = { id: jid, name: msg.pushName || jid.split('@')[0], unreadCount: 0 };
           }
           store.chats.data[jid].conversationTimestamp = msg.messageTimestamp;
+          if (!store.messages[jid]) store.messages[jid] = [];
+          const parsed = parseMessage(msg);
+          if (parsed && !store.messages[jid].some(m => m.id === parsed.id)) {
+            store.messages[jid].push(parsed);
+          }
+          broadcast('new_message', { chatId: jid, message: parsed });
         }
       }
     });
@@ -156,9 +175,9 @@ async function connectToWhatsApp() {
     auth: state,
     logger,
     printQRInTerminal: false,
-    browser: ['StealthVault', 'Chrome', '124.0.0'],
-    syncFullHistory: false,
-    markOnlineOnConnect: false,
+    browser: ['Mac OS', 'Chrome', '124.0.0'],
+    syncFullHistory: true,
+    markOnlineOnConnect: true,
     generateHighQualityLinkPreview: false,
   });
 
@@ -199,14 +218,15 @@ async function connectToWhatsApp() {
   });
 
   // ── Incoming messages ──────────────────────────────────────────────────────
-  sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return;
+  sock.ev.on('messages.upsert', async ({ messages }) => {
     for (const msg of messages) {
       if (!msg.message) continue;
-      const chatId = msg.key.remoteJid;
+      const chatId = msg.key?.remoteJid;
+      if (!chatId) continue;
       const parsed = parseMessage(msg);
-      // Cache and broadcast new message event
-      broadcast('new_message', { chatId, message: parsed });
+      if (parsed) {
+        broadcast('new_message', { chatId, message: parsed });
+      }
     }
   });
 
@@ -335,13 +355,9 @@ app.get('/api/messages/:chatId', requireToken, async (req, res) => {
       return res.status(503).json({ error: 'Not connected' });
     }
     const chatId = decodeURIComponent(req.params.chatId);
-    const limit = parseInt(req.query.limit || '40');
-    const messages = await sock.loadMessages(chatId, limit, undefined);
-    const parsed = messages
-      .map(parseMessage)
-      .filter(Boolean)
-      .reverse();
-    res.json({ messages: parsed });
+    const limit = parseInt(req.query.limit || '50');
+    const msgs = store.messages[chatId] || [];
+    res.json({ messages: msgs.slice(-limit) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
