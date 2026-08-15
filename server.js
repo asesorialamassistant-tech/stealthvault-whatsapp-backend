@@ -11,13 +11,14 @@ import mime from 'mime-types';
 import NodeCache from 'node-cache';
 import pkg from '@whiskeysockets/baileys';
 const makeWASocket = pkg.default || pkg;
+const baileys = pkg.default || pkg;
 const {
   useMultiFileAuthState,
   DisconnectReason,
   downloadMediaMessage,
   makeInMemoryStore,
   proto,
-} = pkg;
+} = baileys;
 import pino from 'pino';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
