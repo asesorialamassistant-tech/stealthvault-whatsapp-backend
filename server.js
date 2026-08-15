@@ -9,13 +9,15 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import mime from 'mime-types';
 import NodeCache from 'node-cache';
-import makeWASocket, {
+import pkg from '@whiskeysockets/baileys';
+const makeWASocket = pkg.default || pkg;
+const {
   useMultiFileAuthState,
   DisconnectReason,
   downloadMediaMessage,
   makeInMemoryStore,
   proto,
-} from '@whiskeysockets/baileys';
+} = pkg;
 import pino from 'pino';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
