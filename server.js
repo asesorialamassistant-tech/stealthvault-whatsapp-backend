@@ -9,14 +9,14 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import mime from 'mime-types';
 import NodeCache from 'node-cache';
-import pkg from '@whiskeysockets/baileys';
-const makeWASocket = pkg.default || pkg;
-const baileys = pkg.default || pkg;
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const baileys = require('@whiskeysockets/baileys');
+const makeWASocket = baileys.default || baileys;
 const {
   useMultiFileAuthState,
   DisconnectReason,
   downloadMediaMessage,
-  makeInMemoryStore,
   proto,
 } = baileys;
 import pino from 'pino';
@@ -29,8 +29,46 @@ const SECRET_TOKEN = process.env.SECRET_TOKEN || 'stealthvault_secret_2024';
 // ─── Logger (silent in production to avoid leaking data) ─────────────────────
 const logger = pino({ level: 'silent' });
 
-// ─── In-memory store (last 500 messages per chat) ────────────────────────────
-const store = makeInMemoryStore({ logger });
+// ─── Custom In-Memory Store (Zero-Dependency) ───────────────────────────────
+const store = {
+  chats: {
+    all: () => Object.values(store.chats.data),
+    data: {}
+  },
+  bind: (ev) => {
+    ev.on('chats.set', ({ chats }) => {
+      for (const chat of chats) {
+        store.chats.data[chat.id] = { ...store.chats.data[chat.id], ...chat };
+      }
+    });
+    ev.on('chats.upsert', (chats) => {
+      for (const chat of chats) {
+        store.chats.data[chat.id] = { ...store.chats.data[chat.id], ...chat };
+      }
+    });
+    ev.on('chats.update', (updates) => {
+      for (const update of updates) {
+        if (store.chats.data[update.id]) {
+          store.chats.data[update.id] = { ...store.chats.data[update.id], ...update };
+        }
+      }
+    });
+    ev.on('contacts.set', ({ contacts }) => {
+      for (const contact of contacts) {
+        const id = contact.id;
+        store.chats.data[id] = { ...store.chats.data[id], id, name: contact.name || contact.notify || contact.verifiedName };
+      }
+    });
+    ev.on('contacts.update', (updates) => {
+      for (const update of updates) {
+        const id = update.id;
+        if (store.chats.data[id]) {
+          store.chats.data[id].name = update.name || update.notify || store.chats.data[id].name;
+        }
+      }
+    });
+  }
+};
 
 // ─── Message cache for quick access ──────────────────────────────────────────
 const msgCache = new NodeCache({ stdTTL: 3600, checkperiod: 120 });
