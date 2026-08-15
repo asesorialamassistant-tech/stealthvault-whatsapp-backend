@@ -36,6 +36,20 @@ const store = {
     data: {}
   },
   bind: (ev) => {
+    ev.on('messaging-history.set', ({ chats, contacts }) => {
+      if (chats) {
+        for (const chat of chats) {
+          store.chats.data[chat.id] = { ...store.chats.data[chat.id], ...chat };
+        }
+      }
+      if (contacts) {
+        for (const contact of contacts) {
+          const id = contact.id;
+          const name = contact.name || contact.notify || contact.verifiedName;
+          store.chats.data[id] = { ...store.chats.data[id], id, name };
+        }
+      }
+    });
     ev.on('chats.set', ({ chats }) => {
       for (const chat of chats) {
         store.chats.data[chat.id] = { ...store.chats.data[chat.id], ...chat };
@@ -56,14 +70,27 @@ const store = {
     ev.on('contacts.set', ({ contacts }) => {
       for (const contact of contacts) {
         const id = contact.id;
-        store.chats.data[id] = { ...store.chats.data[id], id, name: contact.name || contact.notify || contact.verifiedName };
+        const name = contact.name || contact.notify || contact.verifiedName;
+        store.chats.data[id] = { ...store.chats.data[id], id, name };
       }
     });
     ev.on('contacts.update', (updates) => {
       for (const update of updates) {
         const id = update.id;
         if (store.chats.data[id]) {
-          store.chats.data[id].name = update.name || update.notify || store.chats.data[id].name;
+          const name = update.name || update.notify || store.chats.data[id].name;
+          store.chats.data[id].name = name;
+        }
+      }
+    });
+    ev.on('messages.upsert', ({ messages }) => {
+      for (const msg of messages) {
+        const jid = msg.key.remoteJid;
+        if (jid) {
+          if (!store.chats.data[jid]) {
+            store.chats.data[jid] = { id: jid, unreadCount: 0 };
+          }
+          store.chats.data[jid].conversationTimestamp = msg.messageTimestamp;
         }
       }
     });
