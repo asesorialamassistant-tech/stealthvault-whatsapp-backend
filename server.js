@@ -226,19 +226,6 @@ async function connectToWhatsApp() {
     }
   });
 
-  // ── Incoming messages ──────────────────────────────────────────────────────
-  sock.ev.on('messages.upsert', async ({ messages }) => {
-    for (const msg of messages) {
-      if (!msg.message) continue;
-      const chatId = msg.key?.remoteJid;
-      if (!chatId) continue;
-      const parsed = parseMessage(msg);
-      if (parsed) {
-        broadcast('new_message', { chatId, message: parsed });
-      }
-    }
-  });
-
   sock.ev.on('messages.update', (updates) => {
     for (const update of updates) {
       broadcast('message_update', update);
@@ -246,24 +233,18 @@ async function connectToWhatsApp() {
   });
 }
 
-// ─── Message parser ────────────────────────────────────────────────────────────
 function parseMessage(msg) {
   let content = msg.message;
   if (!content) return null;
 
-  if (content.ephemeralMessage) {
-    content = content.ephemeralMessage.message;
-  }
-  if (content.viewOnceMessage) {
-    content = content.viewOnceMessage.message;
-  }
-  if (content.viewOnceMessageV2) {
-    content = content.viewOnceMessageV2.message;
+  // Unwrap any wrappers recursively
+  while (content?.ephemeralMessage || content?.viewOnceMessage || content?.viewOnceMessageV2 || content?.documentWithCaptionMessage) {
+    content = content?.ephemeralMessage?.message || content?.viewOnceMessage?.message || content?.viewOnceMessageV2?.message || content?.documentWithCaptionMessage?.message;
   }
   if (!content) return null;
 
   const key = msg.key;
-  const fromMe = key.fromMe;
+  const fromMe = Boolean(key.fromMe);
   const chatId = key.remoteJid;
   const msgId = key.id;
   const timestamp = (msg.messageTimestamp?.toNumber?.() ?? msg.messageTimestamp) * 1000 || Date.now();
@@ -275,9 +256,12 @@ function parseMessage(msg) {
   let fileName = null;
   let mimeType = null;
 
-  if (content.conversation || content.extendedTextMessage) {
+  if (typeof content.conversation === 'string') {
     type = 'text';
-    text = content.conversation || content.extendedTextMessage?.text || '';
+    text = content.conversation;
+  } else if (content.extendedTextMessage) {
+    type = 'text';
+    text = content.extendedTextMessage.text || '';
   } else if (content.imageMessage) {
     type = 'media';
     mediaType = 'image';
@@ -297,6 +281,7 @@ function parseMessage(msg) {
     mediaType = 'document';
     mimeType = content.documentMessage.mimetype || 'application/octet-stream';
     fileName = content.documentMessage.fileName || 'document';
+    text = content.documentMessage.caption || '';
   } else if (content.stickerMessage) {
     type = 'sticker';
     mediaType = 'image';
@@ -305,11 +290,18 @@ function parseMessage(msg) {
     type = 'reaction';
     text = content.reactionMessage.text || '';
   } else {
-    // Attempt fallback text extraction from any sub-keys
-    const firstKey = Object.keys(content)[0];
-    if (firstKey && content[firstKey]?.text) {
-      type = 'text';
-      text = content[firstKey].text;
+    // Attempt fallback text extraction
+    for (const val of Object.values(content)) {
+      if (val && typeof val === 'object' && val.text) {
+        type = 'text';
+        text = val.text;
+        break;
+      }
+      if (val && typeof val === 'object' && val.caption) {
+        type = 'media';
+        text = val.caption;
+        break;
+      }
     }
   }
 
