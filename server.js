@@ -324,7 +324,7 @@ function parseMessage(msg) {
 // ─── REST API routes ──────────────────────────────────────────────────────────
 
 // Health check (public)
-app.get('/health', (req, res) => res.json({ ok: true, status: connectionStatus }));
+app.get('/health', (req, res) => res.json({ ok: true, version: '1.2.0-realtime-fix', status: connectionStatus }));
 
 // Connection status
 app.get('/api/status', requireToken, (req, res) => {
