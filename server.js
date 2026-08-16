@@ -204,15 +204,24 @@ async function connectToWhatsApp() {
     }
 
     if (connection === 'close') {
-      const shouldReconnect =
-        lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      connectionStatus = shouldReconnect ? 'connecting' : 'disconnected';
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const isLoggedOut = statusCode === DisconnectReason.loggedOut || statusCode === 401 || statusCode === 403;
+      connectionStatus = isLoggedOut ? 'disconnected' : 'connecting';
       broadcast('status', { status: connectionStatus });
-      if (shouldReconnect) {
+      if (isLoggedOut) {
+        console.log('🚪 Session logged out / invalid. Wiping auth dir for new QR...');
+        try {
+          const { rmSync } = await import('fs');
+          if (existsSync(AUTH_DIR)) {
+            rmSync(AUTH_DIR, { recursive: true, force: true });
+          }
+        } catch (e) {
+          console.error('Error removing auth dir:', e);
+        }
+        setTimeout(connectToWhatsApp, 2000);
+      } else {
         console.log('🔄 Reconnecting...');
         setTimeout(connectToWhatsApp, 3000);
-      } else {
-        console.log('🚪 Logged out');
       }
     }
   });
@@ -452,12 +461,37 @@ app.post('/api/pairing-code', requireToken, async (req, res) => {
   }
 });
 
+// Reset session and force new QR code
+app.post('/api/reset', requireToken, async (req, res) => {
+  try {
+    if (sock) {
+      try { sock.ev.removeAllListeners(); sock.end(undefined); } catch (e) {}
+      sock = null;
+    }
+    const { rmSync } = await import('fs');
+    if (existsSync(AUTH_DIR)) {
+      rmSync(AUTH_DIR, { recursive: true, force: true });
+    }
+    currentQR = null;
+    connectionStatus = 'connecting';
+    broadcast('status', { status: 'connecting' });
+    connectToWhatsApp().catch(console.error);
+    res.json({ ok: true, message: 'Session reset successfully' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Logout / disconnect
 app.post('/api/logout', requireToken, async (req, res) => {
   try {
     if (sock) {
-      await sock.logout();
+      try { await sock.logout(); } catch (e) {}
       sock = null;
+    }
+    const { rmSync } = await import('fs');
+    if (existsSync(AUTH_DIR)) {
+      rmSync(AUTH_DIR, { recursive: true, force: true });
     }
     connectionStatus = 'disconnected';
     broadcast('status', { status: 'disconnected' });
