@@ -175,7 +175,7 @@ async function connectToWhatsApp() {
     auth: state,
     logger,
     printQRInTerminal: false,
-    browser: ['Mac OS', 'Chrome', '124.0.0'],
+    browser: baileys.Browsers ? baileys.Browsers.ubuntu('Desktop') : ['Ubuntu', 'Chrome', '110.0.5563.64'],
     syncFullHistory: true,
     markOnlineOnConnect: true,
     generateHighQualityLinkPreview: false,
