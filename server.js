@@ -248,7 +248,18 @@ async function connectToWhatsApp() {
 
 // ─── Message parser ────────────────────────────────────────────────────────────
 function parseMessage(msg) {
-  const content = msg.message;
+  let content = msg.message;
+  if (!content) return null;
+
+  if (content.ephemeralMessage) {
+    content = content.ephemeralMessage.message;
+  }
+  if (content.viewOnceMessage) {
+    content = content.viewOnceMessage.message;
+  }
+  if (content.viewOnceMessageV2) {
+    content = content.viewOnceMessageV2.message;
+  }
   if (!content) return null;
 
   const key = msg.key;
@@ -293,6 +304,13 @@ function parseMessage(msg) {
   } else if (content.reactionMessage) {
     type = 'reaction';
     text = content.reactionMessage.text || '';
+  } else {
+    // Attempt fallback text extraction from any sub-keys
+    const firstKey = Object.keys(content)[0];
+    if (firstKey && content[firstKey]?.text) {
+      type = 'text';
+      text = content[firstKey].text;
+    }
   }
 
   return {
