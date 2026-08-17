@@ -324,7 +324,7 @@ function parseMessage(msg) {
 // ─── REST API routes ──────────────────────────────────────────────────────────
 
 // Health check (public)
-app.get('/health', (req, res) => res.json({ ok: true, version: '1.2.0-realtime-fix', status: connectionStatus }));
+app.get('/health', (req, res) => res.json({ ok: true, version: '1.3.0-chronological-sort', status: connectionStatus }));
 
 // Connection status
 app.get('/api/status', requireToken, (req, res) => {
@@ -374,9 +374,11 @@ app.get('/api/messages/:chatId', requireToken, async (req, res) => {
       return res.status(503).json({ error: 'Not connected' });
     }
     const chatId = decodeURIComponent(req.params.chatId);
-    const limit = parseInt(req.query.limit || '50');
+    const limit = parseInt(req.query.limit || '100');
     const msgs = store.messages[chatId] || [];
-    res.json({ messages: msgs.slice(-limit) });
+    // Sort ascending by timestamp so latest messages are at the bottom
+    const sorted = [...msgs].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    res.json({ messages: sorted.slice(-limit) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
