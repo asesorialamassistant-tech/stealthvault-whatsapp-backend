@@ -183,6 +183,9 @@ async function connectToWhatsApp() {
     browser: baileys.Browsers ? baileys.Browsers.ubuntu('Desktop') : ['Ubuntu', 'Chrome', '110.0.5563.64'],
     syncFullHistory: true,
     markOnlineOnConnect: true,
+    keepAliveIntervalMs: 15_000,
+    maxMsgRetryCount: 5,
+    defaultQueryTimeoutMs: 60_000,
     generateHighQualityLinkPreview: false,
   });
 
@@ -341,7 +344,7 @@ function parseMessage(msg) {
 // ─── REST API routes ──────────────────────────────────────────────────────────
 
 // Health check (public)
-app.get('/health', (req, res) => res.json({ ok: true, version: '1.5.0-extract-content', status: connectionStatus }));
+app.get('/health', (req, res) => res.json({ ok: true, version: '1.6.0-keepalive-live', status: connectionStatus }));
 
 // Connection status
 app.get('/api/status', requireToken, (req, res) => {
