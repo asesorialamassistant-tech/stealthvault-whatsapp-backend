@@ -36,6 +36,7 @@ const store = {
     data: {}
   },
   messages: {},
+  rawMessages: {},
   bind: (ev) => {
     ev.on('messaging-history.set', ({ chats, contacts, messages }) => {
       if (chats) {
@@ -55,6 +56,8 @@ const store = {
           const jid = msg.key?.remoteJid;
           if (jid) {
             if (!store.messages[jid]) store.messages[jid] = [];
+            if (!store.rawMessages[jid]) store.rawMessages[jid] = {};
+            if (msg.key?.id) store.rawMessages[jid][msg.key.id] = msg;
             const parsed = parseMessage(msg);
             if (parsed && !store.messages[jid].some(m => m.id === parsed.id)) {
               store.messages[jid].push(parsed);
@@ -105,6 +108,8 @@ const store = {
           }
           store.chats.data[jid].conversationTimestamp = msg.messageTimestamp;
           if (!store.messages[jid]) store.messages[jid] = [];
+          if (!store.rawMessages[jid]) store.rawMessages[jid] = {};
+          if (msg.key?.id) store.rawMessages[jid][msg.key.id] = msg;
           const parsed = parseMessage(msg);
           if (parsed && !store.messages[jid].some(m => m.id === parsed.id)) {
             store.messages[jid].push(parsed);
@@ -324,7 +329,7 @@ function parseMessage(msg) {
 // ─── REST API routes ──────────────────────────────────────────────────────────
 
 // Health check (public)
-app.get('/health', (req, res) => res.json({ ok: true, version: '1.3.0-chronological-sort', status: connectionStatus }));
+app.get('/health', (req, res) => res.json({ ok: true, version: '1.4.0-media-power', status: connectionStatus }));
 
 // Connection status
 app.get('/api/status', requireToken, (req, res) => {
@@ -438,8 +443,11 @@ app.get('/api/media/:chatId/:messageId', requireToken, async (req, res) => {
     }
     const chatId = decodeURIComponent(req.params.chatId);
     const messageId = req.params.messageId;
-    const messages = await sock.loadMessages(chatId, 50, undefined);
-    const target = messages.find(m => m.key.id === messageId);
+    let target = store.rawMessages[chatId]?.[messageId];
+    if (!target && sock.loadMessages) {
+      const messages = await sock.loadMessages(chatId, 50, undefined);
+      target = messages.find(m => m.key.id === messageId);
+    }
     if (!target) return res.status(404).json({ error: 'Message not found' });
 
     const buffer = await downloadMediaMessage(target, 'buffer', {}, { reuploadRequest: sock.updateMediaMessage });
