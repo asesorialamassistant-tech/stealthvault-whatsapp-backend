@@ -242,7 +242,11 @@ function parseMessage(msg) {
   let content = msg.message;
   if (!content) return null;
 
-  // Unwrap any wrappers recursively
+  // Baileys extractMessageContent / recursive unwrapping
+  if (baileys.extractMessageContent) {
+    content = baileys.extractMessageContent(content) || content;
+  }
+
   while (content?.ephemeralMessage || content?.viewOnceMessage || content?.viewOnceMessageV2 || content?.documentWithCaptionMessage) {
     content = content?.ephemeralMessage?.message || content?.viewOnceMessage?.message || content?.viewOnceMessageV2?.message || content?.documentWithCaptionMessage?.message;
   }
@@ -295,16 +299,24 @@ function parseMessage(msg) {
     type = 'reaction';
     text = content.reactionMessage.text || '';
   } else {
-    // Attempt fallback text extraction
+    // Traverse object values for any text or media content
     for (const val of Object.values(content)) {
-      if (val && typeof val === 'object' && val.text) {
+      if (!val || typeof val !== 'object') continue;
+      if (typeof val.text === 'string' && val.text.length > 0) {
         type = 'text';
         text = val.text;
         break;
       }
-      if (val && typeof val === 'object' && val.caption) {
+      if (typeof val.caption === 'string' && val.caption.length > 0) {
         type = 'media';
         text = val.caption;
+        mediaType = val.mimetype?.startsWith('video') ? 'video' : 'image';
+        mimeType = val.mimetype || 'image/jpeg';
+        break;
+      }
+      if (val.conversation) {
+        type = 'text';
+        text = val.conversation;
         break;
       }
     }
@@ -329,7 +341,7 @@ function parseMessage(msg) {
 // ─── REST API routes ──────────────────────────────────────────────────────────
 
 // Health check (public)
-app.get('/health', (req, res) => res.json({ ok: true, version: '1.4.0-media-power', status: connectionStatus }));
+app.get('/health', (req, res) => res.json({ ok: true, version: '1.5.0-extract-content', status: connectionStatus }));
 
 // Connection status
 app.get('/api/status', requireToken, (req, res) => {
