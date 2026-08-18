@@ -394,7 +394,7 @@ app.get('/api/messages/:chatId', requireToken, async (req, res) => {
       return res.status(503).json({ error: 'Not connected' });
     }
     const chatId = decodeURIComponent(req.params.chatId);
-    const limit = parseInt(req.query.limit || '100');
+    const limit = parseInt(req.query.limit || '200');
     const msgs = store.messages[chatId] || [];
     // Sort ascending by timestamp so latest messages are at the bottom
     const sorted = [...msgs].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
